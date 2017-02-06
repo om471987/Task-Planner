@@ -160,7 +160,7 @@ def task_scheduler(tasks, computes):
             for last_end_time, last_step_counter in heap:
                 last_step = step_array[last_step_counter]
                 if result.IsTraceEnabled:
-                    log_heap('try perm for ' + task.Name, last_end_time, last_step.Capacity, last_step.Visited, last_step.Output)
+                    log_heap('Try perm for ' + task.Name, last_end_time, last_step.Capacity, last_step.Visited, last_step.Output)
                 parents = tasks[task]
                 is_eligible = True
                 if task in last_step.Visited:
@@ -179,7 +179,7 @@ def task_scheduler(tasks, computes):
                         add_to_heap(start_time, new_end_time, new_capacity, new_visited, new_output,
                                     last_step.Trace + ' | start Time ' + str(start_time))
 
-    def get_minimum_exection_time(step):
+    def get_minimum_execution_time(step):
         if result.IsTraceEnabled:
             print(step.Output, step.Trace)
         if step.End_Time < result.Time:
@@ -196,7 +196,7 @@ def task_scheduler(tasks, computes):
             if end_time >= result.Time:
                 continue
             if len(step.Visited) == n:
-                get_minimum_exection_time(step)
+                get_minimum_execution_time(step)
                 continue
             ready_tasks = get_ready_for_execution_tasks(step.Visited)
             permutation_concurrent_start(step.Start_Time, step, ready_tasks)
