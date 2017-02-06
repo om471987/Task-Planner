@@ -20,8 +20,8 @@ class Compute:
 class Result:
     def __init__(self):
         self.Time = sys.maxsize
-        self.Trace = ''
         self.Output = ''
+        self.Trace = ''
 
 
 class Step:
@@ -38,56 +38,29 @@ def task_scheduler(tasks, computes):
     n = len(tasks)
     m = len(computes)
 
-    visited = set()
-    grey_set = set()
-    result = Result()
     heap = []
-    heapq.heapify(heap)
     task_range = dict()
     distinct_perm = []
     step_array = []
     template = [None for _ in range(m)]
-    for i in range(m):
-        template[i] = computes[i].Capacity
+    result = Result()
 
-    i += 1
-    for key, value in tasks.items():
-        task_range[key] = i
-        i += 1
+    def initialize():
+        # generate unique key for a task
+        i = 1
+        for key, value in tasks.items():
+            task_range[key] = i
+            i += 1
+
+        # generate template to keep track of maximum compute
+        for i in range(m):
+            template[i] = computes[i].Capacity
 
     def clone_visited_set(input):
         output = dict()
         for k, v in input.items():
             output[k] = v
         return output
-
-    def max_core_possibility():
-        max_compute = 0
-        for compute in computes:
-            max_compute = max(max_compute, compute.Capacity)
-        for task, parents in tasks.items():
-            if task.Cores_Required > max_compute:
-                return False
-        return True
-
-    def cycle_detection_util(task):
-        visited.add(task)
-        grey_set.add(task)
-        for parent in tasks[task]:
-            if parent in grey_set:
-                return False
-            if parent not in visited:
-                if not cycle_detection_util(parent):
-                    return False
-        return True
-
-    def cycle_detection():
-        for task, parents in tasks.items():
-            if task not in visited:
-                grey_set.clear()
-                if not cycle_detection_util(task):
-                    return False
-        return True
 
     def get_ready_for_execution_tasks(temp_visited):
         available = []
@@ -222,15 +195,11 @@ def task_scheduler(tasks, computes):
             permutation_sequential_start(step, ready_tasks)
             permutation_non_concurrent_start(end_time, ready_tasks)
 
-    if not max_core_possibility():
-        print('Max core not possible')
-    elif not cycle_detection():
-        print('Cycle found')
-    else:
-        execute()
-        print('Min Time:' + str(result.Time))
-        print(result.Output.replace('* ', '\n'))
-        print(result.Trace)
+    initialize()
+    execute()
+    print('Min Time:' + str(result.Time))
+    print(result.Output.replace('* ', '\n'))
+    print(result.Trace)
 
 
 def get_tasks(path):
@@ -311,6 +280,45 @@ def get_computes(path):
     return computes
 
 
+def validate_inputs(tasks, computes):
+    max_compute = 0
+    for compute in computes:
+        if compute.Capacity < 0:
+            print('Compute capacity for ' + compute.Name + 'should be a positive value')
+            return
+        max_compute = max(max_compute, compute.Capacity)
+    for task, parents in tasks.items():
+        if task.Cores_Required < 0:
+            print('Cores_Required for ' + task.Name + 'should be a positive value')
+            return
+        if task.Cores_Required > max_compute:
+            print('Cores_Required for ' + task.Name + ' can not be more than given compute capacity')
+            return
+
+
+def cycle_detection(tasks):
+    black_set = set()
+    grey_set = set()
+
+    def cycle_detection_util(task):
+        black_set.add(task)
+        grey_set.add(task)
+        for parent in tasks[task]:
+            if parent in grey_set:
+                return False
+            if parent not in black_set:
+                if not cycle_detection_util(parent):
+                    return False
+        return True
+
+    for task, parents in tasks.items():
+        if task not in black_set:
+            grey_set.clear()
+            if not cycle_detection_util(task):
+                print('Not a valid DAG. Please remove the Cycle')
+                return
+
+
 def test_case(task_path, compute_path):
     path = os.path.join(os.path.dirname(__file__), task_path)
     tasks = get_tasks(path)
@@ -322,10 +330,12 @@ def test_case(task_path, compute_path):
     if not computes:
         print('Please fix computes file')
         return
+    validate_inputs(tasks, computes)
+    cycle_detection(tasks)
     task_scheduler(tasks, computes)
 
 
-#test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
+# test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
 test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml') # 350
-#test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml') # 350
+test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml') # 350
 # test_case(input(), input())
