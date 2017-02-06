@@ -2,6 +2,7 @@ import sys
 import os
 import heapq
 import copy
+import time
 
 
 class Task:
@@ -23,6 +24,7 @@ class Result:
         self.Output = ''
         self.Trace = ''
         self.IsTraceEnabled = False
+        self.Timer_Start = time.time()
 
 
 class Step:
@@ -36,6 +38,7 @@ class Step:
 
 
 def task_scheduler(tasks, computes):
+    result = Result()
     n = len(tasks)
     m = len(computes)
 
@@ -44,7 +47,6 @@ def task_scheduler(tasks, computes):
     distinct_perm = []
     step_array = []
     template = [None for _ in range(m)]
-    result = Result()
 
     def initialize():
         # generate unique key for a task
@@ -209,7 +211,9 @@ def task_scheduler(tasks, computes):
     execute()
     print('Min Time:' + str(result.Time))
     print(result.Output.replace('* ', '\n'))
-    print(result.Trace)
+    print('Time elapsed in seconds:', round(time.time() - result.Timer_Start, 2))
+    if result.IsTraceEnabled:
+        print(result.Trace)
 
 
 def get_tasks(path):
@@ -345,7 +349,7 @@ def test_case(task_path, compute_path):
     task_scheduler(tasks, computes)
 
 
-# test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
-test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml')  # 350
-test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml')  # 350
+test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
+# test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml')  # 350
+# test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml')  # 350
 # test_case(input(), input())
