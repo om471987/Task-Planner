@@ -1,0 +1,18 @@
+taska:
+ cores_required: 2
+ execution_time: 100
+taskb:
+ cores_required: 3
+ execution_time: 50
+taskc:
+ cores_required: 3
+ execution_time: 100
+ parent_tasks: "taska, taskb"
+taskd:
+ cores_required: 2
+ execution_time: 150
+ parent_tasks: "taskb"
+taske:
+ cores_required: 4
+ execution_time: 125
+ parent_tasks: "taskc"
