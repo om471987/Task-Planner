@@ -22,6 +22,7 @@ class Result:
         self.Time = sys.maxsize
         self.Output = ''
         self.Trace = ''
+        self.IsTraceEnabled = False
 
 
 class Step:
@@ -47,19 +48,18 @@ def task_scheduler(tasks, computes):
 
     def initialize():
         # generate unique key for a task
-        i = 1
+        counter = 1
         for key, value in tasks.items():
-            task_range[key] = i
-            i += 1
-
+            task_range[key] = counter
+            counter += 1
         # generate template to keep track of maximum compute
-        for i in range(m):
-            template[i] = computes[i].Capacity
+        for counter in range(m):
+            template[counter] = computes[counter].Capacity
 
-    def clone_visited_set(input):
+    def clone_visited_set(visited):
         output = dict()
-        for k, v in input.items():
-            output[k] = v
+        for key, value in visited.items():
+            output[key] = value
         return output
 
     def get_ready_for_execution_tasks(temp_visited):
@@ -78,22 +78,27 @@ def task_scheduler(tasks, computes):
     def get_tasks_with_no_parent():
         for task, parents in tasks.items():
             if len(parents) == 0:
-                for j in range(m):
-                    if task.Cores_Required <= computes[j].Capacity:
+                for compute_counter in range(m):
+                    if task.Cores_Required <= computes[compute_counter].Capacity:
                         new_compute = copy.deepcopy(template)
-                        new_compute[j] -= task.Cores_Required
+                        new_compute[compute_counter] -= task.Cores_Required
                         new_visited = dict()
-                        new_visited[task] = j
-                        new_output = task.Name + ': ' + computes[j].Name
-                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output, 'Initial')
+                        new_visited[task] = compute_counter
+                        new_output = task.Name + ': ' + computes[compute_counter].Name
+                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output, 'Initial steps')
 
     def log_heap(event, end_time, new_capacity, new_visited, output):
         visited = ''
         for key in new_visited.keys():
             visited += key.Name + ', '
-        visited += ' $'
-        # print(event, end_time, new_capacity, visited, output)
+        visited += ' - '
+        if result.IsTraceEnabled:
+            print(event, end_time, new_capacity, visited, output)
 
+    '''
+    This will generate unique hash for similar group of steps, which help narrow down futher steps
+    (This optimization does not affect accuracy of final result)
+    '''
     def get_unique_keys(new_visited):
         temp = ''
         for key in new_visited.keys():
@@ -114,64 +119,69 @@ def task_scheduler(tasks, computes):
             log_heap('added', new_end_time, new_capacity, new_visited, new_output)
             distinct_perm.append((new_end_time, new_capacity, unique_keys))
 
-    def permutation_concurrent_start(start_t, old_step, ready_tasks):
+    def permutation_concurrent_start(start_time, last_step, ready_tasks):
         for task in ready_tasks:
-            if task in old_step.Visited:
+            if task in last_step.Visited:
                 continue
-            # log_heap('try perm for ' + task.Name, old_step.End_Time, old_step.Capacity, old_step.Visited, old_step.Output)
+            if result.IsTraceEnabled:
+                log_heap('try perm for ' + task.Name, last_step.End_Time, last_step.Capacity, last_step.Visited, last_step.Output)
             parents = tasks[task]
-            is_eligibile = True
+            is_eligible = True
             for parent in parents:
-                if parent in old_step.Visited:
-                    is_eligibile = False
+                if parent in last_step.Visited:
+                    is_eligible = False
                     break
-            if is_eligibile:
-                for o in range(m):
-                    new_capacity = copy.deepcopy(old_step.Capacity)
-                    if new_capacity[o] >= task.Cores_Required:
-                        new_visited = clone_visited_set(old_step.Visited)
-                        new_visited[task] = o
-                        new_capacity[o] -= task.Cores_Required
-                        new_end_time = max(old_step.End_Time, start_t + task.Execution_Time)
-                        new_output = old_step.Output + ' * ' + task.Name + ': ' + computes[o].Name
-                        add_to_heap(start_t, new_end_time, new_capacity, new_visited, new_output, old_step.Trace + ' | start Time ' + str(start_t))
+            if is_eligible:
+                for compute_counter in range(m):
+                    if last_step.Capacity[compute_counter] >= task.Cores_Required:
+                        new_capacity = copy.deepcopy(last_step.Capacity)
+                        new_visited = clone_visited_set(last_step.Visited)
+                        new_visited[task] = compute_counter
+                        new_capacity[compute_counter] -= task.Cores_Required
+                        new_end_time = max(last_step.End_Time, start_time + task.Execution_Time)
+                        new_output = last_step.Output + ' * ' + task.Name + ': ' + computes[compute_counter].Name
+                        add_to_heap(start_time, new_end_time, new_capacity, new_visited, new_output,
+                                    last_step.Trace + ' | start Time ' + str(start_time))
 
-    def permutation_sequential_start(old_step, ready_tasks):
+    def permutation_sequential_start(last_step, ready_tasks):
         for task in ready_tasks:
-            for o in range(m):
-                if task.Cores_Required <= old_step.Capacity[o]:
-                    new_capacity = copy.deepcopy(old_step.Capacity)
-                    new_capacity[o] -= task.Cores_Required
-                    new_visited = clone_visited_set(old_step.Visited)
-                    new_visited[task] = o
-                    new_output = old_step.Output + ' * ' + task.Name + ': ' + computes[o].Name
-                    add_to_heap(old_step.End_Time, old_step.End_Time + task.Execution_Time, new_capacity, new_visited,
-                                new_output, old_step.Trace + ' | start Time ' + str(old_step.End_Time))
+            for compute_counter in range(m):
+                if task.Cores_Required <= last_step.Capacity[compute_counter]:
+                    new_capacity = copy.deepcopy(last_step.Capacity)
+                    new_capacity[compute_counter] -= task.Cores_Required
+                    new_visited = clone_visited_set(last_step.Visited)
+                    new_visited[task] = compute_counter
+                    new_output = last_step.Output + ' * ' + task.Name + ': ' + computes[compute_counter].Name
+                    add_to_heap(last_step.End_Time, last_step.End_Time + task.Execution_Time, new_capacity, new_visited,
+                                new_output, last_step.Trace + ' | start Time ' + str(last_step.End_Time))
 
-    def permutation_non_concurrent_start(start_t, ready_tasks):
+    def permutation_non_concurrent_start(start_time, ready_tasks):
         for task in ready_tasks:
-            for old_end_time, old_step_counter in heap:
-                old_step = step_array[old_step_counter]
-                # log_heap('try perm for ' + task.Name, old_end_time, old_step.Capacity, old_step.Visited, old_step.Output)
+            for last_end_time, last_step_counter in heap:
+                last_step = step_array[last_step_counter]
+                if result.IsTraceEnabled:
+                    log_heap('try perm for ' + task.Name, last_end_time, last_step.Capacity, last_step.Visited, last_step.Output)
                 parents = tasks[task]
-                is_eligibile = True
-                if task in old_step.Visited:
+                is_eligible = True
+                if task in last_step.Visited:
                     continue
                 for parent in parents:
-                    if parent not in old_step.Visited:
-                        is_eligibile = False
+                    if parent not in last_step.Visited:
+                        is_eligible = False
                         break
-                if is_eligibile:
-                    for o in range(m):
-                        new_capacity = copy.deepcopy(old_step.Capacity)
-                        new_visited = clone_visited_set(old_step.Visited)
-                        new_visited[task] = o
-                        new_end_time = max(old_end_time, start_t + task.Execution_Time)
-                        new_output = old_step.Output + ' * ' + task.Name + ': ' + computes[o].Name
-                        add_to_heap(start_t, new_end_time, new_capacity, new_visited, new_output, old_step.Trace + ' | start Time ' + str(start_t))
+                if is_eligible:
+                    for compute_counter in range(m):
+                        new_capacity = copy.deepcopy(last_step.Capacity)
+                        new_visited = clone_visited_set(last_step.Visited)
+                        new_visited[task] = compute_counter
+                        new_end_time = max(last_end_time, start_time + task.Execution_Time)
+                        new_output = last_step.Output + ' * ' + task.Name + ': ' + computes[compute_counter].Name
+                        add_to_heap(start_time, new_end_time, new_capacity, new_visited, new_output,
+                                    last_step.Trace + ' | start Time ' + str(start_time))
 
     def get_minimum_exection_time(step):
-        # print(step.Output, step.Trace)
+        if result.IsTraceEnabled:
+            print(step.Output, step.Trace)
         if step.End_Time < result.Time:
             result.Time = step.End_Time
             result.Output = step.Output
@@ -336,6 +346,6 @@ def test_case(task_path, compute_path):
 
 
 # test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
-test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml') # 350
-test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml') # 350
+test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml')  # 350
+test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml')  # 350
 # test_case(input(), input())
