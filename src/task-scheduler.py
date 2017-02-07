@@ -3,6 +3,7 @@ import os
 import heapq
 import copy
 import time
+import collections
 
 
 class Task:
@@ -24,17 +25,18 @@ class Result:
         self.Output = ''
         self.Timer_Start = time.time()
         self.Max_Waiting_Time = 120 # Seconds
+        self.TraceLevel = 3
 
     def is_max_waiting_time_reached(self):
         return int(time.time() - self.Timer_Start) >= self.Timer_Start
 
 
 class Step:
-    def __init__(self, start_time, end_time, capacity, visited, output):
+    def __init__(self, start_time, end_time, capacity, visited, output, black_Set):
         self.Capacity = capacity
         self.Start_Time = start_time
         self.End_Time = end_time
-        self.Black_Set = set()
+        self.Black_Set = black_Set
         self.Visited = visited
         self.Output = output
 
@@ -49,6 +51,7 @@ def task_scheduler(tasks, computes):
     distinct_perm = []
     step_array = []
     template = [None for _ in range(m)]
+    dependency = collections.deque()
 
     def initialize():
         # generate unique key for a task
@@ -60,6 +63,30 @@ def task_scheduler(tasks, computes):
         for counter in range(m):
             template[counter] = computes[counter].Capacity
 
+    def cycle_detection(tasks):
+        black_set = set()
+        grey_set = set()
+
+        def cycle_detection_util(task):
+            black_set.add(task)
+            grey_set.add(task)
+            for parent in tasks[task]:
+                if parent in grey_set:
+                    return False
+                if parent not in black_set:
+                    if not cycle_detection_util(parent):
+                        return False
+            dependency.append(task)
+            return True
+
+        for task, parents in tasks.items():
+            if task not in black_set:
+                grey_set.clear()
+                if not cycle_detection_util(task):
+                    print('Not a valid DAG. Please remove the Cycle')
+                    return False
+        return True
+
     def clone_visited_set(visited):
         output = dict()
         for key, value in visited.items():
@@ -67,8 +94,8 @@ def task_scheduler(tasks, computes):
         return output
 
     def get_ready_for_execution_tasks_with_children(visited):
-        available = []
-        for task in tasks:
+        output = []
+        for task in dependency:
             if task not in visited:
                 is_eligible = True
                 for parent in tasks[task]:
@@ -76,21 +103,24 @@ def task_scheduler(tasks, computes):
                         is_eligible = False
                         break
                 if is_eligible:
-                    available.append(task)
-        return available
+                    output.append(task)
+        return output
 
-    def get_ready_for_execution_tasks_without_children(visited):
-        available = []
-        for task in tasks:
+    def get_ready_for_execution_tasks_without_children(visited, black_set):
+        output = []
+        traversed = set()
+        for task in dependency:
             if task not in visited:
+                parents = tasks[task]
                 is_eligible = True
-                for parent in tasks[task]:
-                    if parent in visited:
+                for parent in parents:
+                    if (parent in visited or parent in traversed) and parent not in black_set:
                         is_eligible = False
                         break
                 if is_eligible:
-                    available.append(task)
-        return available
+                    output.append(task)
+                traversed.add(task)
+        return output
 
     def get_tasks_with_no_parent():
         for task, parents in tasks.items():
@@ -102,14 +132,14 @@ def task_scheduler(tasks, computes):
                         new_visited = dict()
                         new_visited[task] = compute_counter
                         new_output = task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output)
+                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output, dict())
 
     def log_heap(event, logging_step):
-        string_builder = ''
+        string_builder = ' ### '
         for key in logging_step.Visited.keys():
             string_builder += key.Name + ', '
-        string_builder += ';'
-        print(event, logging_step.Start_Time, logging_step.End_Time, logging_step.Output, string_builder)
+        if result.TraceLevel > 1:
+            print(event, logging_step.Start_Time, logging_step.Capacity, logging_step.End_Time, logging_step.Output, string_builder)
 
     '''
     This will generate unique hash for similar group of steps, which help narrow down futher steps
@@ -125,20 +155,24 @@ def task_scheduler(tasks, computes):
             output += k
         return output
 
-    def add_to_heap(new_start_time, new_end_time, new_capacity, new_visited, new_output):
+    def add_to_heap(new_start_time, new_end_time, new_capacity, new_visited, new_output, black_set):
         new_capacity = copy.deepcopy(new_capacity)
         new_visited = clone_visited_set(new_visited)
+        black_set = clone_visited_set(black_set)
         unique_keys = get_unique_keys(new_visited)
         if (new_end_time, new_capacity, unique_keys) not in distinct_perm and new_end_time < result.Time:
-            added_step = Step(new_start_time, new_end_time, new_capacity, new_visited, new_output)
+            added_step = Step(new_start_time, new_end_time, new_capacity, new_visited, new_output, black_set)
             step_counter = len(step_array)
             step_array.append(added_step)
             heapq.heappush(heap, (new_end_time, step_counter))
             log_heap('added', added_step)
             distinct_perm.append((new_end_time, new_capacity, unique_keys))
+            return added_step
+        else:
+            return None
 
     def multiple_tasks_that_start_parallel(popped_step):
-        ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited)
+        ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited, popped_step.Black_Set)
         end_time = popped_step.End_Time
         capacity = copy.deepcopy(popped_step.Capacity)
         visited = clone_visited_set(popped_step.Visited)
@@ -148,17 +182,17 @@ def task_scheduler(tasks, computes):
             did_add = False
             for ready_task in ready_tasks:
                 for compute_counter in range(m):
-                    if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required:
+                    if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required and ready_task not in visited:
                         end_time = max(end_time, popped_step.Start_Time + ready_task.Execution_Time)
                         capacity[compute_counter] -= ready_task.Cores_Required
                         visited[ready_task] = compute_counter
                         did_add = True
                         output += " * " + ready_task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output)
-            ready_tasks = get_ready_for_execution_tasks_without_children(visited)
+                        add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output, popped_step.Black_Set)
+            ready_tasks = get_ready_for_execution_tasks_without_children(visited, popped_step.Black_Set)
 
     def single_task_that_start_parallel(popped_step):
-        ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited)
+        ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited, popped_step.Black_Set)
         for ready_task in ready_tasks:
             for compute_counter in range(m):
                 if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required:
@@ -168,7 +202,7 @@ def task_scheduler(tasks, computes):
                     end_time = max(popped_step.End_Time, popped_step.Start_Time + ready_task.Execution_Time)
                     capacity[compute_counter] -= ready_task.Cores_Required
                     output = popped_step.Output + " * " + ready_task.Name + ': ' + computes[compute_counter].Name
-                    add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output)
+                    add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output, popped_step.Black_Set)
 
     def tasks_that_start_after_completion(popped_step):
         ready_tasks = get_ready_for_execution_tasks_with_children(popped_step.Visited)
@@ -181,11 +215,12 @@ def task_scheduler(tasks, computes):
                     end_time = popped_step.End_Time + ready_task.Execution_Time
                     capacity[compute_counter] -= ready_task.Cores_Required
                     output = popped_step.Output + " * " + ready_task.Name + ': ' + computes[compute_counter].Name
-                    add_to_heap(popped_step.End_Time, end_time, capacity, visited, output)
+                    add_to_heap(popped_step.End_Time, end_time, capacity, visited, output, popped_step.Black_Set)
 
     def get_minimum_execution_time(step):
         if step.End_Time < result.Time:
-            print('Min value found', len(step.Visited), step.End_Time, step.Output)
+            if result.TraceLevel > 1:
+                print('Min value found', len(step.Visited), step.End_Time, step.Output)
             result.Time = step.End_Time
             result.Output = step.Output
 
@@ -204,10 +239,12 @@ def task_scheduler(tasks, computes):
             for visited_task, compute_counter in popped_step.Visited.items():
                 if visited_task not in popped_step.Black_Set:
                     popped_step.Capacity[compute_counter] += visited_task.Cores_Required
-                    popped_step.Black_Set.add(visited_task)
+                    popped_step.Black_Set[visited_task] = None
             tasks_that_start_after_completion(popped_step)
 
     initialize()
+    if not cycle_detection(tasks):
+        return
     execute()
     print('Min Time:' + str(result.Time))
     print(result.Output.replace('* ', '\n'))
@@ -308,29 +345,6 @@ def validate_inputs(tasks, computes):
             return
 
 
-def cycle_detection(tasks):
-    black_set = set()
-    grey_set = set()
-
-    def cycle_detection_util(task):
-        black_set.add(task)
-        grey_set.add(task)
-        for parent in tasks[task]:
-            if parent in grey_set:
-                return False
-            if parent not in black_set:
-                if not cycle_detection_util(parent):
-                    return False
-        return True
-
-    for task, parents in tasks.items():
-        if task not in black_set:
-            grey_set.clear()
-            if not cycle_detection_util(task):
-                print('Not a valid DAG. Please remove the Cycle')
-                return
-
-
 def test_case(task_path, compute_path):
     path = os.path.join(os.path.dirname(__file__), task_path)
     tasks = get_tasks(path)
@@ -343,7 +357,6 @@ def test_case(task_path, compute_path):
         print('Please fix computes file')
         return
     validate_inputs(tasks, computes)
-    cycle_detection(tasks)
     task_scheduler(tasks, computes)
 
 
