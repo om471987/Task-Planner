@@ -7,7 +7,10 @@ Time Complexity - NP-Complete
 
 Overview - This algorithm first tries to look at all possible permutations of every task and its dependency. If the number of nodes and its dependecy is higher then the alogorithm starts becoming slow. In that case it falls back into first possible solution by compromising accuracy. (Default hard-cut 2 minutes)
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/rKQaZuoUR4M/0.jpg)](https://www.youtube.com/watch?v=rKQaZuoUR4M)
+<p align="center">
+        [![Parallel Task Planner explaination](https://img.youtube.com/vi/rKQaZuoUR4M/0.jpg)](https://img.youtube.com/vi/rKQaZuoUR4M/0.jpg?t=35s "Parallel Task Planner explaination")
+</p>
+
 
 ## Installation
 Entire code is in one file. I have used Python 3.4 interpreter. No need of external package or module.
