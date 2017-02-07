@@ -2,8 +2,9 @@
   <content>
 # Parallel Task Planner
 
-Language  - Python 3.4
-Time Complexity - NP-Complete
+ Language  - Python 3.4
+ 
+ Time Complexity - NP-Complete
 
 Overview - This algorithm first tries to look at all possible permutations of every task and its dependency. If the number of nodes and its dependecy is higher then the alogorithm starts becoming slow. In that case it falls back into first possible solution by compromising accuracy. (Default hard-cut 2 minutes)
 
