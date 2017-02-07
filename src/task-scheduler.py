@@ -24,7 +24,7 @@ class Result:
         self.Time = sys.maxsize
         self.Output = ''
         self.Timer_Start = time.time()
-        self.Max_Waiting_Time = 120 # Seconds
+        self.Max_Waiting_Time = 120# Seconds
         self.TraceLevel = 1
 
     def is_max_waiting_time_reached(self):
@@ -146,7 +146,7 @@ def task_scheduler(tasks, computes):
 
     '''
     This will generate unique hash for similar group of steps, which help narrow down futher steps
-    (This optimization does not affect accuracy of final result)
+    (This optimization does not affect accuracy of the final result)
     '''
     def get_unique_keys(new_visited):
         temp = ''
@@ -388,7 +388,11 @@ def test_case(task_path, compute_path):
     task_scheduler(tasks, computes)
 
 
-test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
-test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml')  # 350
-test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml')  # 350
-# test_case(input(), input())
+# test_case('../test-cases/complex_task_tree/tasks.yaml', '../test-cases/complex_task_tree/computes.yaml') # 210
+# test_case('../test-cases/given_in_test/tasks.yaml', '../test-cases/given_in_test/computes.yaml')  # 350
+# test_case('../test-cases/parallel_start_with_scarce_compute/tasks.yaml', '../test-cases/parallel_start_with_scarce_compute/computes.yaml')  # 350
+print('Please enter absolute/relative path for tasks file: \n')
+task_file_name = input()
+print('Please enter absolute/relative path for computes file: \n')
+computes_file_name = input()
+test_case(task_file_name, computes_file_name)
