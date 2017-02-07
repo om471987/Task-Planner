@@ -42,6 +42,5 @@ Entire code is in one file. I have used Python 3.4 interpreter. No need of exter
  2. Assignment by Brian Bailey. (I looked at the readme document to understand the test but didn't look at the code.)
             https://github.com/baileyb/task-scheduler
 </content>
-  <tabTrigger>readme</tabTrigger>
 </snippet>
 # 
