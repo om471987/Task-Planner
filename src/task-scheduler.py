@@ -262,6 +262,8 @@ def task_scheduler(tasks, computes):
             log_heap('Removed', popped_step)
             if len(popped_step.Visited) == n:
                 get_minimum_execution_time(popped_step.End_Time, popped_step.Output)
+                if result.is_max_waiting_time_reached():
+                    return
             multiple_tasks_that_start_parallel(popped_step)
             single_task_that_start_parallel(popped_step)
             for visited_task, compute_counter in popped_step.Visited.items():
