@@ -20,3 +20,11 @@ taskf:
  cores_required: 4
  execution_time: 200
  parent_tasks: "taskd, taske"
+taskg:
+ cores_required: 3
+ execution_time: 10
+ parent_tasks: "taskf"
+taskh:
+ cores_required: 1
+ execution_time: 130
+ parent_tasks: "taske"

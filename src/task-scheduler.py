@@ -22,19 +22,21 @@ class Result:
     def __init__(self):
         self.Time = sys.maxsize
         self.Output = ''
-        self.Trace = ''
-        self.IsTraceEnabled = False
         self.Timer_Start = time.time()
+        self.Max_Waiting_Time = 120 # Seconds
+
+    def is_max_waiting_time_reached(self):
+        return int(time.time() - self.Timer_Start) >= self.Timer_Start
 
 
 class Step:
-    def __init__(self, start_time, end_time, capacity, visited, output, trace):
+    def __init__(self, start_time, end_time, capacity, visited, output):
         self.Capacity = capacity
         self.Start_Time = start_time
         self.End_Time = end_time
+        self.Black_Set = set()
         self.Visited = visited
         self.Output = output
-        self.Trace = trace + " End Time " + str(end_time)
 
 
 def task_scheduler(tasks, computes):
@@ -64,13 +66,26 @@ def task_scheduler(tasks, computes):
             output[key] = value
         return output
 
-    def get_ready_for_execution_tasks(temp_visited):
+    def get_ready_for_execution_tasks_with_children(visited):
         available = []
         for task in tasks:
-            if task not in temp_visited:
+            if task not in visited:
                 is_eligible = True
                 for parent in tasks[task]:
-                    if parent not in temp_visited:
+                    if parent not in visited:
+                        is_eligible = False
+                        break
+                if is_eligible:
+                    available.append(task)
+        return available
+
+    def get_ready_for_execution_tasks_without_children(visited):
+        available = []
+        for task in tasks:
+            if task not in visited:
+                is_eligible = True
+                for parent in tasks[task]:
+                    if parent in visited:
                         is_eligible = False
                         break
                 if is_eligible:
@@ -87,15 +102,14 @@ def task_scheduler(tasks, computes):
                         new_visited = dict()
                         new_visited[task] = compute_counter
                         new_output = task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output, 'Initial steps')
+                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output)
 
-    def log_heap(event, end_time, new_capacity, new_visited, output):
-        visited = ''
-        for key in new_visited.keys():
-            visited += key.Name + ', '
-        visited += ' - '
-        if result.IsTraceEnabled:
-            print(event, end_time, new_capacity, visited, output)
+    def log_heap(event, logging_step):
+        string_builder = ''
+        for key in logging_step.Visited.keys():
+            string_builder += key.Name + ', '
+        string_builder += ';'
+        print(event, logging_step.Start_Time, logging_step.End_Time, logging_step.Output, string_builder)
 
     '''
     This will generate unique hash for similar group of steps, which help narrow down futher steps
@@ -111,109 +125,93 @@ def task_scheduler(tasks, computes):
             output += k
         return output
 
-    def add_to_heap(new_start_time, new_end_time, new_capacity, new_visited, new_output, trace):
+    def add_to_heap(new_start_time, new_end_time, new_capacity, new_visited, new_output):
+        new_capacity = copy.deepcopy(new_capacity)
+        new_visited = clone_visited_set(new_visited)
         unique_keys = get_unique_keys(new_visited)
         if (new_end_time, new_capacity, unique_keys) not in distinct_perm and new_end_time < result.Time:
-            step = Step(new_start_time, new_end_time, new_capacity, new_visited, new_output, trace)
+            added_step = Step(new_start_time, new_end_time, new_capacity, new_visited, new_output)
             step_counter = len(step_array)
-            step_array.append(step)
+            step_array.append(added_step)
             heapq.heappush(heap, (new_end_time, step_counter))
-            log_heap('added', new_end_time, new_capacity, new_visited, new_output)
+            log_heap('added', added_step)
             distinct_perm.append((new_end_time, new_capacity, unique_keys))
 
-    def permutation_concurrent_start(start_time, last_step, ready_tasks):
-        for task in ready_tasks:
-            if task in last_step.Visited:
-                continue
-            if result.IsTraceEnabled:
-                log_heap('try perm for ' + task.Name, last_step.End_Time, last_step.Capacity, last_step.Visited, last_step.Output)
-            parents = tasks[task]
-            is_eligible = True
-            for parent in parents:
-                if parent in last_step.Visited:
-                    is_eligible = False
-                    break
-            if is_eligible:
+    def multiple_tasks_that_start_parallel(popped_step):
+        ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited)
+        end_time = popped_step.End_Time
+        capacity = copy.deepcopy(popped_step.Capacity)
+        visited = clone_visited_set(popped_step.Visited)
+        output = popped_step.Output
+        did_add = True
+        while len(ready_tasks) > 0 and did_add:
+            did_add = False
+            for ready_task in ready_tasks:
                 for compute_counter in range(m):
-                    if last_step.Capacity[compute_counter] >= task.Cores_Required:
-                        new_capacity = copy.deepcopy(last_step.Capacity)
-                        new_visited = clone_visited_set(last_step.Visited)
-                        new_visited[task] = compute_counter
-                        new_capacity[compute_counter] -= task.Cores_Required
-                        new_end_time = max(last_step.End_Time, start_time + task.Execution_Time)
-                        new_output = last_step.Output + ' * ' + task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(start_time, new_end_time, new_capacity, new_visited, new_output,
-                                    last_step.Trace + ' | start Time ' + str(start_time))
+                    if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required:
+                        end_time = max(end_time, popped_step.Start_Time + ready_task.Execution_Time)
+                        capacity[compute_counter] -= ready_task.Cores_Required
+                        visited[ready_task] = compute_counter
+                        did_add = True
+                        output += " * " + ready_task.Name + ': ' + computes[compute_counter].Name
+                        add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output)
+            ready_tasks = get_ready_for_execution_tasks_without_children(visited)
 
-    def permutation_sequential_start(last_step, ready_tasks):
-        for task in ready_tasks:
+    def single_task_that_start_parallel(popped_step):
+        ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited)
+        for ready_task in ready_tasks:
             for compute_counter in range(m):
-                if task.Cores_Required <= last_step.Capacity[compute_counter]:
-                    new_capacity = copy.deepcopy(last_step.Capacity)
-                    new_capacity[compute_counter] -= task.Cores_Required
-                    new_visited = clone_visited_set(last_step.Visited)
-                    new_visited[task] = compute_counter
-                    new_output = last_step.Output + ' * ' + task.Name + ': ' + computes[compute_counter].Name
-                    add_to_heap(last_step.End_Time, last_step.End_Time + task.Execution_Time, new_capacity, new_visited,
-                                new_output, last_step.Trace + ' | start Time ' + str(last_step.End_Time))
+                if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required:
+                    capacity = copy.deepcopy(popped_step.Capacity)
+                    visited = clone_visited_set(popped_step.Visited)
+                    visited[ready_task] = compute_counter
+                    end_time = max(popped_step.End_Time, popped_step.Start_Time + ready_task.Execution_Time)
+                    capacity[compute_counter] -= ready_task.Cores_Required
+                    output = popped_step.Output + " * " + ready_task.Name + ': ' + computes[compute_counter].Name
+                    add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output)
 
-    def permutation_non_concurrent_start(start_time, ready_tasks):
-        for task in ready_tasks:
-            for last_end_time, last_step_counter in heap:
-                last_step = step_array[last_step_counter]
-                if result.IsTraceEnabled:
-                    log_heap('Try perm for ' + task.Name, last_end_time, last_step.Capacity, last_step.Visited, last_step.Output)
-                parents = tasks[task]
-                is_eligible = True
-                if task in last_step.Visited:
-                    continue
-                for parent in parents:
-                    if parent not in last_step.Visited:
-                        is_eligible = False
-                        break
-                if is_eligible:
-                    for compute_counter in range(m):
-                        new_capacity = copy.deepcopy(last_step.Capacity)
-                        new_visited = clone_visited_set(last_step.Visited)
-                        new_visited[task] = compute_counter
-                        new_end_time = max(last_end_time, start_time + task.Execution_Time)
-                        new_output = last_step.Output + ' * ' + task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(start_time, new_end_time, new_capacity, new_visited, new_output,
-                                    last_step.Trace + ' | start Time ' + str(start_time))
+    def tasks_that_start_after_completion(popped_step):
+        ready_tasks = get_ready_for_execution_tasks_with_children(popped_step.Visited)
+        for ready_task in ready_tasks:
+            for compute_counter in range(m):
+                if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required:
+                    capacity = copy.deepcopy(popped_step.Capacity)
+                    visited = clone_visited_set(popped_step.Visited)
+                    visited[ready_task] = compute_counter
+                    end_time = popped_step.End_Time + ready_task.Execution_Time
+                    capacity[compute_counter] -= ready_task.Cores_Required
+                    output = popped_step.Output + " * " + ready_task.Name + ': ' + computes[compute_counter].Name
+                    add_to_heap(popped_step.End_Time, end_time, capacity, visited, output)
 
     def get_minimum_execution_time(step):
-        if result.IsTraceEnabled:
-            print(step.Output, step.Trace)
         if step.End_Time < result.Time:
+            print('Min value found', len(step.Visited), step.End_Time, step.Output)
             result.Time = step.End_Time
             result.Output = step.Output
-            result.Trace = step.Trace
 
     def execute():
         get_tasks_with_no_parent()
         while len(heap) > 0:
             end_time, step_counter = heapq.heappop(heap)
-            step = step_array[step_counter]
-            log_heap('Removed', end_time, step.Capacity, step.Visited, step.Output)
             if end_time >= result.Time:
                 continue
-            if len(step.Visited) == n:
-                get_minimum_execution_time(step)
-                continue
-            ready_tasks = get_ready_for_execution_tasks(step.Visited)
-            permutation_concurrent_start(step.Start_Time, step, ready_tasks)
-            for k, v in step.Visited.items():
-                step.Capacity[v] += k.Cores_Required
-            permutation_sequential_start(step, ready_tasks)
-            permutation_non_concurrent_start(end_time, ready_tasks)
+            popped_step = step_array[step_counter]
+            log_heap('Removed', popped_step)
+            if len(popped_step.Visited) == n:
+                get_minimum_execution_time(popped_step)
+            multiple_tasks_that_start_parallel(popped_step)
+            single_task_that_start_parallel(popped_step)
+            for visited_task, compute_counter in popped_step.Visited.items():
+                if visited_task not in popped_step.Black_Set:
+                    popped_step.Capacity[compute_counter] += visited_task.Cores_Required
+                    popped_step.Black_Set.add(visited_task)
+            tasks_that_start_after_completion(popped_step)
 
     initialize()
     execute()
     print('Min Time:' + str(result.Time))
     print(result.Output.replace('* ', '\n'))
     print('Time elapsed in seconds:', round(time.time() - result.Timer_Start, 2))
-    if result.IsTraceEnabled:
-        print(result.Trace)
 
 
 def get_tasks(path):
