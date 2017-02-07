@@ -25,16 +25,17 @@ class Result:
         self.Output = ''
         self.Timer_Start = time.time()
         self.Max_Waiting_Time = 120 # Seconds
-        self.TraceLevel = 3
+        self.TraceLevel = 1
 
     def is_max_waiting_time_reached(self):
         return int(time.time() - self.Timer_Start) >= self.Timer_Start
 
 
 class Step:
-    def __init__(self, start_time, end_time, capacity, visited, output, black_Set):
+    def __init__(self, start_time, end_time, capacity, visited, output, black_Set, task_Start_Times):
         self.Capacity = capacity
         self.Start_Time = start_time
+        self.Task_Start_Times = task_Start_Times
         self.End_Time = end_time
         self.Black_Set = black_Set
         self.Visited = visited
@@ -132,13 +133,15 @@ def task_scheduler(tasks, computes):
                         new_visited = dict()
                         new_visited[task] = compute_counter
                         new_output = task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output, dict())
+                        task_Start_Times = dict()
+                        task_Start_Times[task] = 0
+                        add_to_heap(0, task.Execution_Time, new_compute, new_visited, new_output, dict(), task_Start_Times)
 
     def log_heap(event, logging_step):
         string_builder = ' ### '
         for key in logging_step.Visited.keys():
             string_builder += key.Name + ', '
-        if result.TraceLevel > 1:
+        if result.TraceLevel > 2:
             print(event, logging_step.Start_Time, logging_step.Capacity, logging_step.End_Time, logging_step.Output, string_builder)
 
     '''
@@ -155,17 +158,18 @@ def task_scheduler(tasks, computes):
             output += k
         return output
 
-    def add_to_heap(new_start_time, new_end_time, new_capacity, new_visited, new_output, black_set):
+    def add_to_heap(new_start_time, new_end_time, new_capacity, new_visited, new_output, black_set, task_Start_Times):
         new_capacity = copy.deepcopy(new_capacity)
         new_visited = clone_visited_set(new_visited)
         black_set = clone_visited_set(black_set)
+        task_Start_Times = clone_visited_set(task_Start_Times)
         unique_keys = get_unique_keys(new_visited)
         if (new_end_time, new_capacity, unique_keys) not in distinct_perm and new_end_time < result.Time:
-            added_step = Step(new_start_time, new_end_time, new_capacity, new_visited, new_output, black_set)
+            added_step = Step(new_start_time, new_end_time, new_capacity, new_visited, new_output, black_set, task_Start_Times)
             step_counter = len(step_array)
             step_array.append(added_step)
             heapq.heappush(heap, (new_end_time, step_counter))
-            log_heap('added', added_step)
+            log_heap('Added', added_step)
             distinct_perm.append((new_end_time, new_capacity, unique_keys))
             return added_step
         else:
@@ -173,23 +177,39 @@ def task_scheduler(tasks, computes):
 
     def multiple_tasks_that_start_parallel(popped_step):
         ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited, popped_step.Black_Set)
+        start_time = popped_step.Start_Time
         end_time = popped_step.End_Time
         capacity = copy.deepcopy(popped_step.Capacity)
         visited = clone_visited_set(popped_step.Visited)
+        black_set = clone_visited_set(popped_step.Black_Set)
+        task_Start_Times = clone_visited_set(popped_step.Task_Start_Times)
         output = popped_step.Output
-        did_add = True
-        while len(ready_tasks) > 0 and did_add:
-            did_add = False
+        while len(ready_tasks) > 0:
             for ready_task in ready_tasks:
                 for compute_counter in range(m):
-                    if popped_step.Capacity[compute_counter] >= ready_task.Cores_Required and ready_task not in visited:
-                        end_time = max(end_time, popped_step.Start_Time + ready_task.Execution_Time)
+                    if capacity[compute_counter] >= ready_task.Cores_Required and ready_task not in visited:
+                        end_time = max(end_time, start_time + ready_task.Execution_Time)
                         capacity[compute_counter] -= ready_task.Cores_Required
                         visited[ready_task] = compute_counter
-                        did_add = True
                         output += " * " + ready_task.Name + ': ' + computes[compute_counter].Name
-                        add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output, popped_step.Black_Set)
-            ready_tasks = get_ready_for_execution_tasks_without_children(visited, popped_step.Black_Set)
+                        task_Start_Times[ready_task] = start_time
+                        add_to_heap(start_time, end_time, capacity, visited, output, black_set, task_Start_Times)
+            if len(visited) == n:
+                get_minimum_execution_time(end_time, output)
+            ready_tasks = get_ready_for_execution_tasks_without_children(visited, black_set)
+            if len(ready_tasks) == 0:
+                min_start_time = sys.maxsize
+                min_start_task = None
+                for task_for_completion in visited:
+                    if task_for_completion not in black_set and (start_time + task_for_completion.Execution_Time) < min_start_time:
+                        min_start_time = task_Start_Times[task_for_completion] + task_for_completion.Execution_Time
+                        min_start_task = task_for_completion
+                capacity[visited[min_start_task]] += min_start_task.Cores_Required
+                black_set[min_start_task] = None
+                start_time = min_start_time
+                ready_tasks = get_ready_for_execution_tasks_without_children(visited, black_set)
+            else:
+                break
 
     def single_task_that_start_parallel(popped_step):
         ready_tasks = get_ready_for_execution_tasks_without_children(popped_step.Visited, popped_step.Black_Set)
@@ -202,7 +222,11 @@ def task_scheduler(tasks, computes):
                     end_time = max(popped_step.End_Time, popped_step.Start_Time + ready_task.Execution_Time)
                     capacity[compute_counter] -= ready_task.Cores_Required
                     output = popped_step.Output + " * " + ready_task.Name + ': ' + computes[compute_counter].Name
-                    add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output, popped_step.Black_Set)
+                    task_Start_Times = clone_visited_set(popped_step.Task_Start_Times)
+                    task_Start_Times[ready_task] = popped_step.Start_Time
+                    created_step = add_to_heap(popped_step.Start_Time, end_time, capacity, visited, output, popped_step.Black_Set, task_Start_Times)
+                    if created_step:
+                        multiple_tasks_that_start_parallel(created_step)
 
     def tasks_that_start_after_completion(popped_step):
         ready_tasks = get_ready_for_execution_tasks_with_children(popped_step.Visited)
@@ -215,14 +239,18 @@ def task_scheduler(tasks, computes):
                     end_time = popped_step.End_Time + ready_task.Execution_Time
                     capacity[compute_counter] -= ready_task.Cores_Required
                     output = popped_step.Output + " * " + ready_task.Name + ': ' + computes[compute_counter].Name
-                    add_to_heap(popped_step.End_Time, end_time, capacity, visited, output, popped_step.Black_Set)
+                    task_Start_Times = clone_visited_set(popped_step.Task_Start_Times)
+                    task_Start_Times[ready_task] = popped_step.End_Time
+                    created_step = add_to_heap(popped_step.End_Time, end_time, capacity, visited, output, popped_step.Black_Set, task_Start_Times)
+                    if created_step:
+                        multiple_tasks_that_start_parallel(created_step)
 
-    def get_minimum_execution_time(step):
-        if step.End_Time < result.Time:
+    def get_minimum_execution_time(end_time, output):
+        if end_time < result.Time:
             if result.TraceLevel > 1:
-                print('Min value found', len(step.Visited), step.End_Time, step.Output)
-            result.Time = step.End_Time
-            result.Output = step.Output
+                print('Min value found', end_time, output)
+            result.Time = end_time
+            result.Output = output
 
     def execute():
         get_tasks_with_no_parent()
@@ -233,7 +261,7 @@ def task_scheduler(tasks, computes):
             popped_step = step_array[step_counter]
             log_heap('Removed', popped_step)
             if len(popped_step.Visited) == n:
-                get_minimum_execution_time(popped_step)
+                get_minimum_execution_time(popped_step.End_Time, popped_step.Output)
             multiple_tasks_that_start_parallel(popped_step)
             single_task_that_start_parallel(popped_step)
             for visited_task, compute_counter in popped_step.Visited.items():
@@ -361,6 +389,6 @@ def test_case(task_path, compute_path):
 
 
 test_case('../test-cases/testcase1/tasks.yaml', '../test-cases/testcase1/computes.yaml') # 210
-# test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml')  # 350
-# test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml')  # 350
+test_case('../test-cases/testcase2/tasks.yaml', '../test-cases/testcase2/computes.yaml')  # 350
+test_case('../test-cases/testcase3/tasks.yaml', '../test-cases/testcase3/computes.yaml')  # 350
 # test_case(input(), input())
