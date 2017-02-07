@@ -330,7 +330,7 @@ def get_tasks(path):
                 parent_names = after.strip().replace('"', '').split(',')
                 for parent_name in parent_names:
                     if parent_name.strip() not in task_names:
-                        print('parent_tasks has a value ' + parent_name.strip() + ' which was not found before')
+                        print('(Potential cycle) parent_tasks has a value ' + parent_name.strip() + ' which was not found before')
                         return None
                     parents.append(task_names[parent_name.strip()])
             task = Task(name, core, time)
@@ -362,15 +362,16 @@ def validate_inputs(tasks, computes):
     for compute in computes:
         if compute.Capacity < 0:
             print('Compute capacity for ' + compute.Name + 'should be a positive value')
-            return
+            return False
         max_compute = max(max_compute, compute.Capacity)
     for task, parents in tasks.items():
         if task.Cores_Required < 0:
             print('Cores_Required for ' + task.Name + 'should be a positive value')
-            return
+            return False
         if task.Cores_Required > max_compute:
             print('Cores_Required for ' + task.Name + ' can not be more than given compute capacity')
-            return
+            return False
+    return True
 
 
 def test_case(task_path, compute_path):
@@ -384,13 +385,15 @@ def test_case(task_path, compute_path):
     if not computes:
         print('Please fix computes file')
         return
-    validate_inputs(tasks, computes)
-    task_scheduler(tasks, computes)
+    if validate_inputs(tasks, computes):
+        task_scheduler(tasks, computes)
 
 
 # test_case('../test-cases/complex_task_tree/tasks.yaml', '../test-cases/complex_task_tree/computes.yaml') # 210
 # test_case('../test-cases/given_in_test/tasks.yaml', '../test-cases/given_in_test/computes.yaml')  # 350
 # test_case('../test-cases/parallel_start_with_scarce_compute/tasks.yaml', '../test-cases/parallel_start_with_scarce_compute/computes.yaml')  # 350
+# test_case('../test-cases/error_cases/cycle_found/tasks.yaml', '../test-cases/error_cases/cycle_found/computes.yaml') # 210
+# test_case('../test-cases/error_cases/core_requires_exceed/tasks.yaml', '../test-cases/error_cases/core_requires_exceed/computes.yaml') # 210
 print('Please enter absolute/relative path for tasks file: \n')
 task_file_name = input()
 print('Please enter absolute/relative path for computes file: \n')
