@@ -19,6 +19,8 @@ Entire code is in one file. I have used Python 3.4 interpreter. No need of exter
 4. Please provide absolute/relative path for your test cases when the program starts.
 5. I have added few test cases in test-cases directory
 
+    ![image](https://github.com/om471987/Task-Planner/blob/master/content/Usage.png)
+
 ## Scenarios
   I try to create permutation of each task at each level for every computation. Thats the only guranteed way to find all possibilies and the minimum time.
   
