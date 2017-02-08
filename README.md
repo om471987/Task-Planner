@@ -8,10 +8,6 @@
 
 Overview - This algorithm first tries to look at all possible permutations of every task and its dependency. If the number of nodes and its dependecy is higher then the alogorithm starts becoming slow. In that case it falls back into first possible solution by compromising accuracy. (Default hard-cut 2 minutes)
 
-<p align="center">
-        [![Parallel Task Planner explaination](https://img.youtube.com/vi/rKQaZuoUR4M/0.jpg)](https://img.youtube.com/vi/rKQaZuoUR4M/0.jpg?t=35s "Parallel Task Planner explaination")
-</p>
-
 
 ## Installation
 Entire code is in one file. I have used Python 3.4 interpreter. No need of external package or module.
@@ -22,6 +18,17 @@ Entire code is in one file. I have used Python 3.4 interpreter. No need of exter
 3. Run the file using Python command line  (python3 Task-Planner/src/taskScheduler.py)
 4. Please provide absolute/relative path for your test cases when the program starts.
 5. I have added few test cases in test-cases directory
+
+## Scenarios
+  I try to create permutation of each task at each level for every computation. Thats the only guranteed way to find all possibilies and the minimum time.
+  
+1. Two Tasks starting at the same time
+2. Two Tasks starting one after the other
+3. One Task starts and second task starts before finishing the first.
+4. One Task starts, second task starts before finishing the first seconds children start before first task ends.
+
+
+
 
 ## Future improvements
 1. If multiple computes have same number of cores don't create task step for all of them. Remove redundancy.
