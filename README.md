@@ -36,9 +36,16 @@ Entire code is in one file. I have used Python 3.4 interpreter. No need of exter
 
 ## Test Cases -
 1. Given in the test
+    ![image](https://github.com/om471987/Task-Planner/blob/master/content/given_in_test.jpg)
+
 2. Two tasks ready to start parallely but with scare computes
-3. Tasks with multiple
+  ![image](https://github.com/om471987/Task-Planner/blob/master/content/parallel_start_with_scarce_compute.jpg)
+  
+3. Complex Tree
+  ![image](https://github.com/om471987/Task-Planner/blob/master/content/complex_task_tree.jpg)
+    
 4. Error case - Task with more computation_required than available
+
 5. Error case - Cycle detection
 
 ## Credits
