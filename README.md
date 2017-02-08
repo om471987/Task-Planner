@@ -16,11 +16,15 @@ Overview - This algorithm first tries to look at all possible permutations of ev
 Entire code is in one file. I have used Python 3.4 interpreter. No need of external package or module.
 
 ## Usage
-1. Clone git repository   git clone https://github.com/om471987/Task-Planner.git
-2. Navigate to python file
-3. Run the file using Python command line or install Pycharm
+1. Clone git repository   (git clone https://github.com/om471987/Task-Planner.git)
+2. Navigate at the root of 'Task-Planner' directory
+3. Run the file using Python command line  (python3 Task-Planner/src/taskScheduler.py)
 4. Please provide absolute/relative path for your test cases when the program starts.
 5. I have added few test cases in test-cases directory
+
+## Future improvements
+1. If multiple computes have same number of cores don't create task step for all of them. Remove redundancy.
+2. Solve problem using Dynamic programming.
 
 ## Contributing
 1. Fork it!
