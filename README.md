@@ -2,8 +2,9 @@
   <content>
 # Parallel Task Planner
 
-Language  - Python 3.4
-Time Complexity - NP-Complete
+ Language  - Python 3.4
+ 
+ Time Complexity - NP-Complete
 
 Overview - This algorithm first tries to look at all possible permutations of every task and its dependency. If the number of nodes and its dependecy is higher then the alogorithm starts becoming slow. In that case it falls back into first possible solution by compromising accuracy. (Default hard-cut 2 minutes)
 
@@ -41,12 +42,10 @@ Entire code is in one file. I have used Python 3.4 interpreter. No need of exter
 5. Error case - Cycle detection
 
 ## Credits
-Credit - 
-1. Mission Peace - Detect Cycle in Directed Graph Algorithm
+ 1. Mission Peace - Detect Cycle in Directed Graph Algorithm
             https://www.youtube.com/watch?v=rKQaZuoUR4M
-2. Assignment by Brian Bailey. (I looked at the readme document to understand the test but didn't look at the code.)
+ 2. Assignment by Brian Bailey. (I looked at the readme document to understand the test but didn't look at the code.)
             https://github.com/baileyb/task-scheduler
 </content>
-  <tabTrigger>readme</tabTrigger>
 </snippet>
 # 
